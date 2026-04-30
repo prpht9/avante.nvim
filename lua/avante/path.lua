@@ -283,6 +283,7 @@ Prompt.custom_modes = {
   legacy = true,
   editing = true,
   suggesting = true,
+  scoped = true,
 }
 
 Prompt.custom_prompts_contents = {}
@@ -449,6 +450,7 @@ P.repo_map = RepoMap
 ---@return AvanteTemplates|nil
 function P._init_templates_lib()
   if _templates_lib ~= nil then return _templates_lib end
+  pcall(function() require("avante_lib").load() end)
   local ok, module = pcall(require, "avante_templates")
   ---@cast module AvanteTemplates
   ---@cast ok boolean

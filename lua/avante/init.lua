@@ -64,7 +64,7 @@ function H.load_path()
     local function load_path() require("avante_lib").load() end
 
     if LazyConfig.plugins[name] and LazyConfig.plugins[name]._.loaded then
-      vim.schedule(load_path)
+      load_path()
     else
       api.nvim_create_autocmd("User", {
         pattern = "LazyLoad",

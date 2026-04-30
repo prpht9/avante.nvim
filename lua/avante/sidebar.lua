@@ -1,8 +1,11 @@
 local api = vim.api
 local fn = vim.fn
 
-local Split = require("nui.split")
-local event = require("nui.utils.autocmd").event
+local ok1, Split = pcall(require, "nui.split")
+if not ok1 then Split = nil end
+local ok2, nui_event = pcall(require, "nui.utils.autocmd")
+if not ok2 then nui_event = nil end
+local event = nui_event and nui_event.event or nil
 
 local PPath = require("plenary.path")
 local Providers = require("avante.providers")
@@ -47,6 +50,8 @@ local SIDEBAR_CONTAINERS = {
   "todos",
   "input",
 }
+
+---@field phase string
 
 ---@class avante.Sidebar
 local Sidebar = {}
@@ -100,13 +105,19 @@ function Sidebar:new(id)
       input_container = 0,
     },
     containers = {},
-    file_selector = FileSelector:new(id),
+    windows = {},
+    file_selector = (function()
+      local status, fs = pcall(FileSelector.new, FileSelector, id)
+      return status and fs or { id = id }
+    end)(),
     is_generating = false,
     chat_history = nil,
     current_state = nil,
     state_timer = nil,
-    state_spinner_chars = Config.windows.spinner.generating,
-    thinking_spinner_chars = Config.windows.spinner.thinking,
+    state_spinner_chars = (Config.windows or {}).spinner and (Config.windows or {}).spinner.generating
+      or { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+    thinking_spinner_chars = (Config.windows or {}).spinner and (Config.windows or {}).spinner.thinking
+      or { "🤔", "🙄" },
     state_spinner_idx = 1,
     state_extmark_id = nil,
     scroll = true,
@@ -122,6 +133,7 @@ function Sidebar:new(id)
     current_tool_use_extmark_id = nil,
     win_width_store = {},
     is_in_full_view = false,
+    phase = Config.mode == "scoped" and "brainstorm" or "normal",
   }, Sidebar)
 end
 
@@ -191,7 +203,8 @@ function Sidebar:open(opts)
   end
 
   if not vim.g.avante_login or vim.g.avante_login == false then
-    api.nvim_exec_autocmds("User", { pattern = Providers.env.REQUEST_LOGIN_PATTERN })
+    local login_pattern = Providers.env and Providers.env.REQUEST_LOGIN_PATTERN or "AvanteRequestLogin"
+    api.nvim_exec_autocmds("User", { pattern = login_pattern })
     vim.g.avante_login = true
   end
 
@@ -1052,7 +1065,8 @@ end
 
 function Sidebar:render_result()
   if not Utils.is_valid_container(self.containers.result) then return end
-  local header_text = Utils.icon("󰭻 ") .. "Avante"
+  local phase_label = Config.mode == "scoped" and ("SCOPED: " .. string.upper(self.phase)) or string.upper(self.phase)
+  local header_text = Utils.icon("󰭻 ") .. "Avante [" .. phase_label .. "]"
   self:render_header(
     self.containers.result.winid,
     self.containers.result.bufnr,
@@ -2526,6 +2540,12 @@ function Sidebar:reload_chat_history()
   self.token_count = nil
   if not self.code.bufnr or not api.nvim_buf_is_valid(self.code.bufnr) then return end
   self.chat_history = Path.history.load(self.code.bufnr)
+  if self.chat_history and self.chat_history.phase then
+    self.phase = self.chat_history.phase
+  elseif Config.mode == "scoped" then
+    self.phase = "brainstorm"
+  end
+
   self._history_cache_invalidated = true
 end
 
@@ -2569,7 +2589,8 @@ function Sidebar:get_history_messages_for_api(opts)
 
     if not Config.acp_providers[Config.provider] then
       local provider = Providers[Config.provider]
-      local use_response_api = Providers.resolve_use_response_api(provider, nil)
+      local _providers = require("avante.providers")
+      local use_response_api = _providers.resolve_use_response_api(provider, nil)
       local tool_limit
       if provider.use_ReAct_prompt or use_response_api then
         tool_limit = nil
@@ -2620,6 +2641,10 @@ function Sidebar:get_generate_prompts_options(request, cb)
   local history_messages = self:get_history_messages_for_api()
 
   local tools = vim.deepcopy(LLMTools.get_tools(request, history_messages))
+  local phase_tools = Utils.get_phase_tools(self.phase)
+  if phase_tools ~= "all" then
+    tools = vim.iter(tools):filter(function(tool) return vim.tbl_contains(phase_tools, tool.name) end):totable()
+  end
   table.insert(tools, {
     name = "add_file_to_context",
     description = "Add a file to the context",
@@ -2666,6 +2691,7 @@ function Sidebar:get_generate_prompts_options(request, cb)
     code_lang = filetype,
     selected_code = selected_code,
     tools = tools,
+    phase = self.phase,
   }
 
   if self.chat_history.system_prompt then
@@ -2830,7 +2856,29 @@ function Sidebar:handle_submit(request)
     end
   end
 
-  ---@type AvanteLLMStopCallback
+  -- Auto-advance phase if PHASE_COMPLETE detected (non-scoped modes only)
+  if Config.mode ~= "scoped" then
+    local Utils = require("avante.utils")
+    local history_messages = History.get_history_messages(self.chat_history)
+    local last_msg = history_messages[#history_messages]
+    if last_msg and last_msg.message.role == "assistant" then
+      local content = type(last_msg.message.content) == "string" and last_msg.message.content
+        or table.concat(
+          vim.tbl_map(
+            function(item) return type(item) == "string" and item or (item.text or "") end,
+            vim.tbl_flatten(last_msg.message.content or {})
+          ),
+          ""
+        )
+      if Utils.parse_phase_complete(content) then
+        vim.schedule(function()
+          self:advance_phase()
+          self:update_content("")
+        end)
+      end
+    end
+  end
+
   local function on_stop(stop_opts)
     self.is_generating = false
 
@@ -3533,9 +3581,39 @@ end
 
 function Sidebar:adjust_layout()
   self:adjust_result_container_layout()
+
   self:adjust_todos_container_layout()
   self:adjust_selected_code_container_layout()
   self:adjust_selected_files_container_layout()
+end
+
+Sidebar.set_phase = function(self, phase)
+  self.phase = phase
+  if self.chat_history then
+    self.chat_history.phase = phase
+    self.chat_history.todos = {}
+    local Utils = require("avante.utils")
+    local cfg = Utils.get_phase_config(phase)
+    if cfg and cfg.prompt_suffix then
+      self.chat_history.system_prompt = (self.chat_history.system_prompt or "") .. cfg.prompt_suffix
+    end
+  end
+  self:save_history()
+  if self:is_open() then
+    self:render_result()
+    self:create_todos_container()
+  end
+end
+
+Sidebar.advance_phase = function(self)
+  local Utils = require("avante.utils")
+  local cfg = Utils.get_phase_config(self.phase)
+  if cfg and cfg.next_phase then
+    self:set_phase(cfg.next_phase)
+    vim.notify("Scoped mode: advanced to " .. cfg.next_phase .. " phase.", vim.log.levels.INFO)
+  elseif Config.mode == "scoped" then
+    vim.notify("Scoped workflow complete. All phases done.", vim.log.levels.INFO)
+  end
 end
 
 return Sidebar

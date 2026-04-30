@@ -71,7 +71,7 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 luacheck:
-	@luacheck `find \( -path './target' -prune \) -o -name "*.lua" -print` --codes
+	@luacheck `find . \( -path './target' -prune \) -o -name "*.lua" -print` --codes
 
 luastylecheck:
 	@stylua --check lua/ plugin/ tests/

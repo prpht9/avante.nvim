@@ -1,4 +1,14 @@
-local Popup = require("nui.popup")
+local RepoMap = {}
+
+local ok_popup, Popup = pcall(require, "nui.popup")
+if not ok_popup then
+  RepoMap.show = function() end
+  RepoMap._init_repo_map_lib = function() end
+  RepoMap.get_repo_map = function() return {} end
+  RepoMap.setup = function() end
+  return RepoMap
+end
+
 local Utils = require("avante.utils")
 local event = require("nui.utils.autocmd").event
 
@@ -11,8 +21,6 @@ local filetype_map = {
 ---@class AvanteRepoMap
 ---@field stringify_definitions fun(lang: string, source: string): string
 local repo_map_lib = nil
-
-local RepoMap = {}
 
 ---@return AvanteRepoMap|nil
 function RepoMap._init_repo_map_lib()

@@ -1811,4 +1811,38 @@ function M.is_floating_window(win_id)
   return config.relative ~= ""
 end
 
+-- Scoped phase helpers
+local function get_phase_config(phase)
+  local Config = require("avante.config")
+  return Config.scoped_phases[phase]
+end
+
+local function get_phase_tools(phase)
+  local cfg = get_phase_config(phase)
+  if not cfg then return {} end
+  local tools = cfg.enabled_tools
+  return type(tools) == "string" and tools == "all" and "all" or tools or {}
+end
+
+local function parse_phase_complete(content)
+  return content:match("PHASE[_ ]?COMPLETE") ~= nil
+end
+
+M.get_phase_config = get_phase_config
+M.get_phase_tools = get_phase_tools
+M.parse_phase_complete = parse_phase_complete
+
+---Returns the path of the most recently-named file (by YYYY-MM-DD prefix) in
+---docs/superpowers/<subdir>/ relative to cwd, or nil if none exists.
+---@param subdir string
+---@return string | nil
+function M.get_latest_scoped_file(subdir)
+  local dir = M.join_paths(vim.fn.getcwd(), "docs", "superpowers", subdir)
+  if vim.fn.isdirectory(dir) == 0 then return nil end
+  local files = vim.fn.glob(dir .. "/*.md", false, true)
+  if not files or #files == 0 then return nil end
+  table.sort(files)
+  return files[#files]
+end
+
 return M

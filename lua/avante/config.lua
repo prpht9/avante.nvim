@@ -28,7 +28,7 @@ M.instructions_file = "avante.md"
 ---@class avante.Config
 M._defaults = {
   debug = false,
-  ---@alias avante.Mode "agentic" | "legacy"
+  ---@alias avante.Mode "agentic" | "legacy" | "scoped"
   ---@type avante.Mode
   mode = "agentic",
   ---@alias avante.ProviderName "claude" | "openai" | "azure" | "gemini" | "vertex" | "cohere" | "copilot" | "bedrock" | "ollama" | "watsonx_code_assistant" | "mistral" | string
@@ -805,11 +805,79 @@ M._defaults = {
   ---@type AvanteLLMToolPublic[] | fun(): AvanteLLMToolPublic[]
   custom_tools = {},
   ---@type AvanteSlashCommand[]
-  slash_commands = {},
+  slash_commands = {
+    {
+      name = "brainstorm",
+      callback = function(sidebar) sidebar:set_phase("brainstorm") end,
+    },
+    {
+      name = "planning",
+      callback = function(sidebar) sidebar:set_phase("planning") end,
+    },
+    {
+      name = "implementation",
+      callback = function(sidebar) sidebar:set_phase("implementation") end,
+    },
+    {
+      name = "validation",
+      callback = function(sidebar) sidebar:set_phase("validation") end,
+    },
+    {
+      name = "next",
+      callback = function(sidebar) sidebar:advance_phase() end,
+    },
+    {
+      name = "agentic",
+      callback = function(sidebar) sidebar:set_phase("agentic") end,
+    },
+  },
   ---@type AvanteShortcut[]
   shortcuts = {},
   ---@type AskOptions
   ask_opts = {},
+  scoped_phases = {
+    brainstorm = {
+      prompt_suffix = [[Brainstorm phase: Explore ideas and clarify requirements. Ask 2-3 clarifying questions before acting. Do not run commands or edit source code. When the design is clear, use the `write_to_file` tool to save the design doc to docs/superpowers/specs/{date}-<topic>-design.md and. You must write this file before you instruct the user to use /next.]],
+      enabled_tools = {
+        "grep",
+        "view",
+        "think",
+        "rag_search",
+        "write_to_file",
+        "read_file",
+        "write_todos",
+        "read_todos",
+        "use_mcp_tool",
+      },
+      todo_scope = [[Brainstorm todos: High-level ideas and open questions only. Final todo: write spec to file.]],
+      next_phase = "planning",
+    },
+    planning = {
+      prompt_suffix = [[Planning phase: Offer 2-3 implementation strategies. Ask 1-2 clarifying questions if needed. When the plan is clear, use the `write_to_file` tool to save it to docs/superpowers/plans/{date}-<topic>-plan.md. Do not edit source code. You must write this file before you instruct the user to use /next.]],
+      enabled_tools = { "write_to_file", "read_file", "view", "write_todos", "use_mcp_tool", "read_todos" },
+      todo_scope = [[Planning todos: Structured implementation steps. Final todo: write plan to file.]],
+      next_phase = "implementation",
+    },
+    implementation = {
+      prompt_suffix = [[Implementation phase: Read the most recent plan from docs/superpowers/plans/ and execute each step. Full tools available.]],
+      enabled_tools = "all",
+      todo_scope = [[Implementation todos: One code change per step, matching the plan.]],
+      next_phase = "validation",
+    },
+    validation = {
+      prompt_suffix = [[Validation phase: Write tests to validate the implementation. Run tests, fix failures, re-run. If one error persists after 3 fix attempts, stop and ask for guidance.]],
+      enabled_tools = "all",
+      todo_scope = [[Validation todos: Test cases to write and verify.]],
+      next_phase = nil,
+    },
+    agentic = {
+      prompt_suffix = "", -- Standard agentic prompt
+      enabled_tools = "all",
+      todo_scope = nil,
+      next_phase = nil,
+    },
+    default_phase = "agentic",
+  },
 }
 
 ---@type avante.Config
@@ -1122,5 +1190,7 @@ function M.get_provider_config(provider_name)
 
   return config
 end
+
+M.scoped_phases = vim.deepcopy(M._defaults.scoped_phases)
 
 return M

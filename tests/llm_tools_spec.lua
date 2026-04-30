@@ -142,9 +142,10 @@ describe("llm_tools", function()
     after_each(function() vim.fn.exepath = original_exepath end)
 
     it("should search using ripgrep when available", function()
-      -- Mock exepath to return rg path
+      local real_rg = vim.fn.exepath("rg")
+      if real_rg == "" then pending("rg not available") end
       vim.fn.exepath = function(cmd)
-        if cmd == "rg" then return "/usr/bin/rg" end
+        if cmd == "rg" then return real_rg end
         return ""
       end
 
@@ -191,9 +192,10 @@ describe("llm_tools", function()
     end)
 
     it("should search using ag when rg is not available", function()
-      -- Mock exepath to return ag path
+      local real_ag = vim.fn.exepath("ag")
+      if real_ag == "" then pending("ag not available") end
       vim.fn.exepath = function(cmd)
-        if cmd == "ag" then return "/usr/bin/ag" end
+        if cmd == "ag" then return real_ag end
         return ""
       end
 
@@ -210,9 +212,10 @@ describe("llm_tools", function()
     end)
 
     it("should search using grep when rg and ag are not available", function()
-      -- Mock exepath to return grep path
+      local real_grep = vim.fn.exepath("grep")
+      if real_grep == "" then pending("grep not available") end
       vim.fn.exepath = function(cmd)
-        if cmd == "grep" then return "/usr/bin/grep" end
+        if cmd == "grep" then return real_grep end
         return ""
       end
 
