@@ -6,7 +6,7 @@ local Highlights = require("avante.highlights")
 local M = {}
 
 ---@diagnostic disable-next-line: deprecated
-local islist = vim.islist or vim.tbl_islist
+local islist = vim.islist ~= nil and vim.islist or vim.tbl_islist
 
 ---Converts text into format suitable for UI
 ---@param text string

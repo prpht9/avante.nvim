@@ -1033,6 +1033,8 @@ local function get_phase_progress(self)
     end
   end
   return curr_idx .. "/" .. #chain
+end
+
 
 function Sidebar:render_header(winid, bufnr, header_text, hl, reverse_hl, opts)
   opts = vim.tbl_extend("force", { include_model = false }, opts or {})
@@ -3653,7 +3655,6 @@ function Sidebar:set_workflow(name)
   self.phase = self.current_phase
   self:render_result()
   vim.notify("Switched to workflow: " .. name, vim.log.levels.INFO)
-end
 
 end
 

@@ -1191,7 +1191,7 @@ function M.setup(opts)
       phases = old_scoped_phases,
       default_phase = old_scoped_phases.default_phase or "agentic",
     }
-    Utils.warn("Migrated `scoped_phases` to `scoped_mode_config.workflows.default`.", { title = "Avante" })
+    -- Utils.debug("Migrated `scoped_phases` to `scoped_mode_config.workflows.default`.", { title = "Avante" })
   end
 
   local function validate_scoped_config(config)
@@ -1201,7 +1201,7 @@ function M.setup(opts)
       local phase_names = vim.tbl_keys(wf.phases)
       for p_name, phase in pairs(wf.phases) do
         assert(type(phase.prompt_suffix) == "string")
-        assert(type(phase.enabled_tools) == "string" or vim.tbl_islist(phase.enabled_tools))
+        assert(type(phase.enabled_tools) == "string" or (vim.islist or vim.tbl_islist)(phase.enabled_tools))
         local todo_scope = phase.todo_scope
         if todo_scope ~= nil then assert(type(todo_scope) == "string") end
         local next_p = phase.next_phase
