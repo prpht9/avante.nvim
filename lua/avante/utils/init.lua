@@ -605,7 +605,7 @@ end
 ---@return boolean
 function M.is_type(type_name, v)
   ---@diagnostic disable-next-line: deprecated
-  local islist = vim.islist or vim.tbl_islist
+  local islist = vim.islist ~= nil and vim.islist or vim.tbl_islist
   if type_name == "list" then return islist(v) end
 
   if type_name == "map" then return type(v) == "table" and not islist(v) end

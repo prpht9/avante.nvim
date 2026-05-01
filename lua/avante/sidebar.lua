@@ -1016,6 +1016,26 @@ local base_win_options = {
   statusline = vim.o.laststatus == 0 and " " or "",
 }
 
+local function get_phase_progress(self)
+  local wf = self.config.scoped_mode_config.workflows[self.current_workflow]
+  if not wf then return "?/?" end
+  local chain = { self.current_phase }
+  local phase = wf.phases[chain[1]]
+  while phase and phase.next_phase do
+    table.insert(chain, phase.next_phase)
+    phase = wf.phases[phase.next_phase]
+  end
+  local curr_idx = 1
+  for i, p in ipairs(chain) do
+    if p == self.current_phase then
+      curr_idx = i
+      break
+    end
+  end
+  return curr_idx .. "/" .. #chain
+end
+
+
 function Sidebar:render_header(winid, bufnr, header_text, hl, reverse_hl, opts)
   opts = vim.tbl_extend("force", { include_model = false }, opts or {})
   if not Config.windows.sidebar_header.enabled then return end
@@ -3635,25 +3655,7 @@ function Sidebar:set_workflow(name)
   self.phase = self.current_phase
   self:render_result()
   vim.notify("Switched to workflow: " .. name, vim.log.levels.INFO)
-end
 
-local function get_phase_progress(self)
-  local wf = self.config.scoped_mode_config.workflows[self.current_workflow]
-  if not wf then return "?/?" end
-  local chain = { self.current_phase }
-  local phase = wf.phases[chain[1]]
-  while phase and phase.next_phase do
-    table.insert(chain, phase.next_phase)
-    phase = wf.phases[phase.next_phase]
-  end
-  local curr_idx = 1
-  for i, p in ipairs(chain) do
-    if p == self.current_phase then
-      curr_idx = i
-      break
-    end
-  end
-  return curr_idx .. "/" .. #chain
 end
 
 Sidebar.advance_phase = function(self)
