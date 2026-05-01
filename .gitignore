@@ -44,6 +44,7 @@ coverage/
 
 # If you use documentation generation tools, you might need to ignore generated docs
 doc/
+docs/
 
 # If you have any personal configuration files, you should ignore them too
 config.personal.lua
