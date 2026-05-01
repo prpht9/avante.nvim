@@ -133,7 +133,16 @@ function Sidebar:new(id)
     current_tool_use_extmark_id = nil,
     win_width_store = {},
     is_in_full_view = false,
-    phase = Config.mode == "scoped" and "brainstorm" or "normal",
+    config = Config,
+    current_workflow = Config.scoped_mode_config.default_workflow,
+    current_phase = (
+      Config.mode == "scoped" and "brainstorm"
+      or Config.scoped_mode_config.workflows[Config.scoped_mode_config.default_workflow].default_phase
+    ),
+    phase = (
+      Config.mode == "scoped" and "brainstorm"
+      or Config.scoped_mode_config.workflows[Config.scoped_mode_config.default_workflow].default_phase
+    ),
   }, Sidebar)
 end
 
@@ -1065,7 +1074,10 @@ end
 
 function Sidebar:render_result()
   if not Utils.is_valid_container(self.containers.result) then return end
-  local phase_label = Config.mode == "scoped" and ("SCOPED: " .. string.upper(self.phase)) or string.upper(self.phase)
+  local progress = get_phase_progress(self)
+  local phase_label = (Config.mode == "scoped")
+      and string.format("SCOPED: %s (%s) > %s", self.current_workflow, progress, string.upper(self.current_phase))
+    or string.upper(self.phase)
   local header_text = Utils.icon("󰭻 ") .. "Avante [" .. phase_label .. "]"
   self:render_header(
     self.containers.result.winid,
@@ -3227,6 +3239,7 @@ function Sidebar:get_result_container_width()
 end
 
 function Sidebar:adjust_result_container_layout()
+  if not Utils.is_valid_container(self.containers.result, true) then return end
   local width = self:get_result_container_width()
   local height = self:get_result_container_height()
 
@@ -3588,31 +3601,81 @@ function Sidebar:adjust_layout()
 end
 
 Sidebar.set_phase = function(self, phase)
-  self.phase = phase
-  if self.chat_history then
-    self.chat_history.phase = phase
-    self.chat_history.todos = {}
-    local Utils = require("avante.utils")
-    local cfg = Utils.get_phase_config(phase)
-    if cfg and cfg.prompt_suffix then
-      self.chat_history.system_prompt = (self.chat_history.system_prompt or "") .. cfg.prompt_suffix
+  local wf = self.config.scoped_mode_config.workflows[self.current_workflow]
+  if wf.phases[phase] then
+    self.phase = phase
+    self.current_phase = phase
+    if self.chat_history then
+      self.chat_history.phase = phase
+      self.chat_history.todos = {}
+      local Utils = require("avante.utils")
+      local cfg = Utils.get_phase_config(phase)
+      if cfg and cfg.prompt_suffix then
+        self.chat_history.system_prompt = (self.chat_history.system_prompt or "") .. cfg.prompt_suffix
+      end
     end
-  end
-  self:save_history()
-  if self:is_open() then
-    self:render_result()
-    self:create_todos_container()
+    self:save_history()
+    if self:is_open() then
+      self:render_result()
+      self:create_todos_container()
+    end
+  else
+    vim.notify("Unknown phase: " .. phase, vim.log.levels.WARN)
   end
 end
 
+function Sidebar:set_workflow(name)
+  local config = self.config.scoped_mode_config
+  if not config.workflows[name] then
+    vim.notify("Unknown workflow: " .. name, vim.log.levels.WARN)
+    return
+  end
+  self.current_workflow = name
+  self.current_phase = config.workflows[name].default_phase
+  self.phase = self.current_phase
+  self:render_result()
+  vim.notify("Switched to workflow: " .. name, vim.log.levels.INFO)
+end
+
+local function get_phase_progress(self)
+  local wf = self.config.scoped_mode_config.workflows[self.current_workflow]
+  if not wf then return "?/?" end
+  local chain = { self.current_phase }
+  local phase = wf.phases[chain[1]]
+  while phase and phase.next_phase do
+    table.insert(chain, phase.next_phase)
+    phase = wf.phases[phase.next_phase]
+  end
+  local curr_idx = 1
+  for i, p in ipairs(chain) do
+    if p == self.current_phase then
+      curr_idx = i
+      break
+    end
+  end
+  return curr_idx .. "/" .. #chain
+end
+
 Sidebar.advance_phase = function(self)
-  local Utils = require("avante.utils")
-  local cfg = Utils.get_phase_config(self.phase)
-  if cfg and cfg.next_phase then
-    self:set_phase(cfg.next_phase)
-    vim.notify("Scoped mode: advanced to " .. cfg.next_phase .. " phase.", vim.log.levels.INFO)
-  elseif Config.mode == "scoped" then
-    vim.notify("Scoped workflow complete. All phases done.", vim.log.levels.INFO)
+  local wf = self.config.scoped_mode_config.workflows[self.current_workflow]
+  local phase = wf.phases[self.current_phase]
+  local next_p = phase.next_phase
+  if next_p then
+    self.current_phase = next_p
+    self.phase = next_p
+    if self.chat_history then
+      self.chat_history.phase = next_p
+      self.chat_history.todos = {}
+      self:save_history()
+    end
+    if self:is_open() then
+      self:render_result()
+      self:create_todos_container()
+      self:update_content("")
+    end
+    vim.notify("Advanced to phase: " .. next_p, vim.log.levels.INFO)
+  else
+    vim.notify("End of workflow.", vim.log.levels.INFO)
   end
 end
 

@@ -334,7 +334,7 @@ M._defaults = {
       timeout = 30000, -- Timeout in milliseconds, increase this for reasoning models
       extra_request_body = {
         temperature = 0.75,
-        max_completion_tokens = 16384, -- Increase this toinclude reasoning tokens (for reasoning models); but too large default value will not fit for some models (e.g. gpt-5-chat supports at most 16384 completion tokens)
+        max_completion_tokens = 16384, -- Increase this to include reasoning tokens (for reasoning models); but too large default value will not fit for some models (e.g. gpt-5-chat supports at most 16384 completion tokens)
         reasoning_effort = "medium", -- low|medium|high, only used for reasoning models
       },
     },
@@ -878,6 +878,11 @@ M._defaults = {
     },
     default_phase = "agentic",
   },
+
+  scoped_mode_config = {
+    workflows = {},
+    default_workflow = "default",
+  },
 }
 
 ---@type avante.Config
@@ -1119,10 +1124,104 @@ function M.setup(opts)
     }
   )
 
+  -- Dynamic scoped commands
+  local function generate_scoped_commands(config)
+    local cmds = {}
+    for wf_name, wf in pairs(config.scoped_mode_config.workflows) do
+      table.insert(cmds, {
+        name = "workflow-" .. wf_name,
+        callback = function(sidebar) sidebar:set_workflow(wf_name) end,
+      })
+      for p_name in pairs(wf.phases) do
+        table.insert(cmds, {
+          name = "phase-" .. p_name,
+          callback = function(sidebar) sidebar:set_phase(p_name) end,
+        })
+      end
+    end
+    return cmds
+  end
+
+  local function add_switch_commands(config)
+    return {
+      {
+        name = "switch-workflow",
+        callback = function(sidebar)
+          local items = vim.tbl_keys(sidebar.config.scoped_mode_config.workflows)
+          table.sort(items)
+          require("avante.ui.selector").select(items, function(selected)
+            if selected then sidebar:set_workflow(selected) end
+          end, config.selector.provider_opts)
+        end,
+      },
+      {
+        name = "switch-phase",
+        callback = function(sidebar)
+          local wf = sidebar.config.scoped_mode_config.workflows[sidebar.current_workflow]
+          if not wf then return end
+          local items = vim.tbl_keys(wf.phases)
+          table.sort(items)
+          require("avante.ui.selector").select(items, function(selected)
+            if selected then sidebar:set_phase(selected) end
+          end, config.selector.provider_opts)
+        end,
+      },
+    }
+  end
+
+  local dynamic_cmds = generate_scoped_commands(merged)
+  local switch_cmds = add_switch_commands(merged)
+  vim.list_extend(merged.slash_commands, dynamic_cmds)
+  vim.list_extend(merged.slash_commands, switch_cmds)
+
   local last_model, last_provider = M.get_last_used_model(merged.providers or {})
   if last_model then apply_model_selection(merged, last_model, last_provider) end
 
   M._options = merged
+
+  -- Scoped mode config migration and validation
+  local old_scoped_phases = merged.scoped_phases
+  if old_scoped_phases then
+    merged.scoped_mode_config = merged.scoped_mode_config
+      or {
+        workflows = {},
+        default_workflow = "default",
+      }
+    merged.scoped_mode_config.workflows.default = {
+      phases = old_scoped_phases,
+      default_phase = old_scoped_phases.default_phase or "agentic",
+    }
+    Utils.warn("Migrated `scoped_phases` to `scoped_mode_config.workflows.default`.", { title = "Avante" })
+  end
+
+  local function validate_scoped_config(config)
+    local workflows = config.workflows or {}
+    for wf_name, wf in pairs(workflows) do
+      assert(type(wf.phases) == "table", "Workflow " .. wf_name .. " missing phases")
+      local phase_names = vim.tbl_keys(wf.phases)
+      for p_name, phase in pairs(wf.phases) do
+        assert(type(phase.prompt_suffix) == "string")
+        assert(type(phase.enabled_tools) == "string" or vim.tbl_islist(phase.enabled_tools))
+        local todo_scope = phase.todo_scope
+        if todo_scope ~= nil then assert(type(todo_scope) == "string") end
+        local next_p = phase.next_phase
+        if next_p then
+          assert(vim.tbl_contains(phase_names, next_p), "Invalid next_phase in " .. wf_name .. ": " .. next_p)
+        end
+      end
+      assert(
+        type(wf.default_phase) == "string" and wf.phases[wf.default_phase],
+        "Invalid default_phase in workflow " .. wf_name
+      )
+    end
+    local default_wf = config.default_workflow
+    assert(
+      type(default_wf) == "string" and workflows[default_wf],
+      "Invalid default_workflow: " .. tostring(default_wf)
+    )
+  end
+
+  pcall(validate_scoped_config, merged.scoped_mode_config)
 
   ---@diagnostic disable-next-line: undefined-field
   if M._options.disable_tools ~= nil then
@@ -1191,6 +1290,13 @@ function M.get_provider_config(provider_name)
   return config
 end
 
-M.scoped_phases = vim.deepcopy(M._defaults.scoped_phases)
+if M._options and M._options.scoped_mode_config then
+  M.scoped_mode_config = vim.deepcopy(M._options.scoped_mode_config)
+
+  -- Backward compatibility
+  if M.scoped_mode_config.workflows[M.scoped_mode_config.default_workflow] then
+    M.scoped_phases = M.scoped_mode_config.workflows[M.scoped_mode_config.default_workflow].phases
+  end
+end
 
 return M

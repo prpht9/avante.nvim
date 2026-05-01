@@ -1814,7 +1814,9 @@ end
 -- Scoped phase helpers
 local function get_phase_config(phase)
   local Config = require("avante.config")
-  return Config.scoped_phases[phase]
+  if Config.scoped_phases[phase] then return Config.scoped_phases[phase] end
+  local wf = Config.scoped_mode_config.workflows[Config.scoped_mode_config.default_workflow]
+  return wf.phases[phase]
 end
 
 local function get_phase_tools(phase)
@@ -1824,9 +1826,7 @@ local function get_phase_tools(phase)
   return type(tools) == "string" and tools == "all" and "all" or tools or {}
 end
 
-local function parse_phase_complete(content)
-  return content:match("PHASE[_ ]?COMPLETE") ~= nil
-end
+local function parse_phase_complete(content) return content:match("PHASE[_ ]?COMPLETE") ~= nil end
 
 M.get_phase_config = get_phase_config
 M.get_phase_tools = get_phase_tools

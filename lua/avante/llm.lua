@@ -461,17 +461,18 @@ function M.generate_prompts(opts)
   if cursor_rules then system_prompt = system_prompt .. "\n\n" .. cursor_rules end
 
   if opts.phase and Config.mode == "scoped" then
-    local phase_cfg = Config.scoped_phases[opts.phase]
+    local wf = Config.scoped_mode_config.workflows[Config.scoped_mode_config.default_workflow]
+    local phase_cfg = wf.phases[opts.phase]
     if phase_cfg and phase_cfg.prompt_suffix then
-      local today = tostring(os.date("%Y-%m-%d"))
+      local today = tostring(os.date("%%Y-%%m-%%d"))
       local suffix = phase_cfg.prompt_suffix:gsub("{date}", today)
       if opts.phase == "implementation" or opts.phase == "validation" then
         local plan_path = Utils.get_latest_scoped_file("plans")
         local spec_path = Utils.get_latest_scoped_file("specs")
-        if plan_path then suffix = suffix .. "\n\nPlan file: " .. plan_path end
-        if spec_path then suffix = suffix .. "\nDesign spec: " .. spec_path end
+        if plan_path then suffix = suffix .. "\\n\\nMost recent plan: " .. plan_path end
+        if spec_path then suffix = suffix .. "\\nDesign spec: " .. spec_path end
       end
-      system_prompt = system_prompt .. "\n\n" .. suffix
+      system_prompt = system_prompt .. "\\n\\n" .. suffix
     end
   end
 
