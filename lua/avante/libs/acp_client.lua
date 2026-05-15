@@ -284,7 +284,9 @@ function ACPClient:_debug_log(message)
   end
 
   -- Open file if needed
-  if not self.debug_log_file then self.debug_log_file = io.open("/tmp/avante-acp-session.log", "a") end
+  if not self.debug_log_file then
+    self.debug_log_file = io.open(vim.fs.joinpath(vim.fn.stdpath("log"), "avante-acp-session.log"), "a")
+  end
 
   if self.debug_log_file then
     self.debug_log_file:write(message)
@@ -417,7 +419,7 @@ function ACPClient:_create_stdio_transport()
 
     if not handle then
       self:_set_state("error")
-      error("Failed to spawn ACP agent process")
+      error("Failed to spawn ACP agent process [" .. table.concat({ self.config.command, unpack(args) }, " ") .. "]")
     end
 
     transport_self.process = handle

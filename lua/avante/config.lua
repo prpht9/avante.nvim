@@ -28,6 +28,7 @@ M.instructions_file = "avante.md"
 ---@class avante.Config
 M._defaults = {
   debug = false,
+  log_level = vim.log.levels.WARN,
   ---@alias avante.Mode "agentic" | "legacy" | "scoped"
   ---@type avante.Mode
   mode = "agentic",
@@ -46,9 +47,9 @@ M._defaults = {
   -- For most providers that we support we will determine this automatically.
   -- If you wish to use a given implementation, then you can override it here.
   tokenizer = "tiktoken",
-  ---@type string | fun(): string | nil
+  ---@type string | nil | fun(): string
   system_prompt = nil,
-  ---@type string | fun(): string | nil
+  ---@type string | nil | fun(): string
   override_prompt_dir = nil,
   rules = {
     project_dir = nil, ---@type string | nil (could be relative dirpath)
@@ -255,8 +256,8 @@ M._defaults = {
       auth_method = "gemini-api-key",
     },
     ["claude-code"] = {
-      command = "npx",
-      args = { "-y", "-g", "@zed-industries/claude-code-acp" },
+      command = "claude-agent-acp",
+      args = {},
       env = {
         NODE_NO_WARNINGS = "1",
         ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY"),
@@ -270,8 +271,8 @@ M._defaults = {
       args = { "acp" },
     },
     ["codex"] = {
-      command = "npx",
-      args = { "-y", "-g", "@zed-industries/codex-acp" },
+      command = "codex-acp",
+      args = {},
       env = {
         NODE_NO_WARNINGS = "1",
         HOME = os.getenv("HOME"),
@@ -285,7 +286,7 @@ M._defaults = {
     },
     ["kimi-cli"] = {
       command = "kimi",
-      args = { "--acp" },
+      args = { "acp" },
     },
   },
   ---To add support for custom provider, follow the format below
@@ -586,7 +587,7 @@ M._defaults = {
   history = {
     max_tokens = 4096,
     carried_entry_count = nil,
-    storage_path = Utils.join_paths(vim.fn.stdpath("state"), "avante"),
+    storage_path = vim.fs.joinpath(vim.fn.stdpath("state"), "avante"),
     paste = {
       extension = "png",
       filename = "pasted-%Y-%m-%d-%H-%M-%S",
@@ -889,8 +890,8 @@ M._defaults = {
 ---@diagnostic disable-next-line: missing-fields
 M._options = {}
 
-local function get_config_dir_path() return Utils.join_paths(vim.fn.expand("~"), ".config", "avante.nvim") end
-local function get_config_file_path() return Utils.join_paths(get_config_dir_path(), "config.json") end
+local function get_config_dir_path() return vim.fs.joinpath(vim.fn.expand("~"), ".config", "avante.nvim") end
+local function get_config_file_path() return vim.fs.joinpath(get_config_dir_path(), "config.json") end
 
 --- Function to save the last used model
 ---@param model_name string
@@ -1247,6 +1248,10 @@ function M.setup(opts)
   for k, v in pairs(M._options.providers) do
     M._options.providers[k] = type(v) == "function" and v() or v
   end
+
+  vim.g.avante = {
+    log_level = merged.log_level,
+  }
 end
 
 ---@param opts table<string, any>

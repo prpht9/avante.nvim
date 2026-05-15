@@ -295,7 +295,9 @@ function Prompt.get_templates_dir(project_root)
 
   -- get root directory of given bufnr
   local directory = Path:new(project_root)
-  if Utils.get_os_name() == "windows" then directory = Path:new(directory:absolute():gsub("^%a:", "")[1]) end
+  if Utils.get_os_name() == "windows" then
+    directory = Path:new(vim.fs.abspath(tostring(directory)):gsub("^%a:", ""))
+  end
   ---@cast directory Path
   ---@type Path
   local cache_prompt_dir = P.cache_path:joinpath(directory)
@@ -328,7 +330,7 @@ function Prompt.get_templates_dir(project_root)
     find_rules(tostring(project_rules_path))
   end
   find_rules(Config.rules.global_dir)
-  find_rules(directory:absolute())
+  find_rules(vim.fs.abspath(tostring(directory)))
 
   local source_dir =
     Path:new(debug.getinfo(1).source:match("@?(.*/)"):gsub("/lua/avante/path.lua$", "") .. "templates")
@@ -351,7 +353,8 @@ function Prompt.get_templates_dir(project_root)
     if override_prompt_dir then
       local user_template_path = Path:new(override_prompt_dir)
       if user_template_path:exists() then
-        local user_scanner = Scan.scan_dir(user_template_path:absolute(), { depth = 1, add_dirs = false })
+        local user_scanner =
+          Scan.scan_dir(vim.fs.abspath(tostring(user_template_path)), { depth = 1, add_dirs = false })
         for _, entry in ipairs(user_scanner) do
           local file = Path:new(entry)
           if file:is_file() then
@@ -388,7 +391,7 @@ function Prompt.get_templates_dir(project_root)
     f:write("\n{%- endblock %}", "a")
   end)
 
-  local dir = cache_prompt_dir:absolute()
+  local dir = vim.fs.abspath(tostring(cache_prompt_dir))
   return dir
 end
 
@@ -465,11 +468,11 @@ function P.setup()
   if not history_path:exists() then history_path:mkdir({ parents = true }) end
   P.history_path = history_path
 
-  local cache_path = Path:new(Utils.join_paths(vim.fn.stdpath("cache"), "avante"))
+  local cache_path = Path:new(vim.fs.joinpath(vim.fn.stdpath("cache"), "avante"))
   if not cache_path:exists() then cache_path:mkdir({ parents = true }) end
   P.cache_path = cache_path
 
-  local data_path = Path:new(Utils.join_paths(vim.fn.stdpath("data"), "avante"))
+  local data_path = Path:new(vim.fs.joinpath(vim.fn.stdpath("data"), "avante"))
   if not data_path:exists() then data_path:mkdir({ parents = true }) end
   P.data_path = data_path
 
