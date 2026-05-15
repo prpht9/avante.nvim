@@ -233,6 +233,18 @@ For building binary if you wish to build from source, then `cargo` is required. 
 
 <details>
 
+  <summary><a href="https://github.com/lumen-oss/rocks.nvim">rocks.nvim</a></summary>
+
+Run `:Rocks install avante.nvim` then add to your init.lua:
+
+```lua
+require('avante').setup()
+```
+
+</details>
+
+<details>
+
   <summary>vim-plug</summary>
 
 ```vim
@@ -401,7 +413,7 @@ require('avante').setup({
 
 > [!IMPORTANT]
 >
-> `avante.nvim` is currently only compatible with Neovim 0.10.1 or later. Please ensure that your Neovim version meets these requirements before proceeding.
+> `avante.nvim` is currently only compatible with Neovim 0.11.0 or later. Please ensure that your Neovim version meets these requirements before proceeding.
 
 > [!NOTE]
 >
@@ -1243,8 +1255,8 @@ ACP providers are configured in the `acp_providers` section of your configuratio
       },
     },
     ["claude-code"] = {
-      command = "npx",
-      args = { "@zed-industries/claude-code-acp" },
+      command = "claude-agent-acp",
+      args = { },
       env = {
         NODE_NO_WARNINGS = "1",
         ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY"),
@@ -1255,8 +1267,8 @@ ACP providers are configured in the `acp_providers` section of your configuratio
       args = { "acp" },
     },
     ["codex"] = {
-      command = "npx",
-      args = { "@zed-industries/codex-acp" },
+      command = "codex-acp",
+      args = {},
       env = {
         NODE_NO_WARNINGS = "1",
         OPENAI_API_KEY = os.getenv("OPENAI_API_KEY"),
